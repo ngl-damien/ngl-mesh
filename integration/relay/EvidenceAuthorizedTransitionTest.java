@@ -35,6 +35,7 @@ public final class EvidenceAuthorizedTransitionTest {
         File publicKey = new File(base, "operator-public.pem");
         writePublicKey(publicKey, operator.getPublic());
         System.setProperty("ngl.relay.operatorKeySha256", OperatorKeyTrust.fingerprint(operator.getPublic()));
+        System.setProperty("ngl.relay.allowTestOperatorKeyProperty", "true");
         File state = new File(base, "authority-state");
 
         // 1. Evidence by itself has no transition mechanism.

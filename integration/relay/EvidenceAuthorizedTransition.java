@@ -4,7 +4,6 @@ import ngl.relay.core.Artifact;
 import ngl.relay.core.CaseStore;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.security.*;
 import java.util.UUID;
 
@@ -46,15 +45,7 @@ public final class EvidenceAuthorizedTransition {
     }
 
     private static void atomicMarker(File dir, String name, String value) throws Exception {
-        if (!dir.exists() && !dir.mkdirs()) throw new IOException("state_dir_create_failed");
-        File target = new File(dir, name);
-        try {
-            Files.writeString(target.toPath(), value, StandardCharsets.UTF_8,
-                java.nio.file.StandardOpenOption.CREATE_NEW,
-                java.nio.file.StandardOpenOption.WRITE);
-        } catch (java.nio.file.FileAlreadyExistsException e) {
-            throw new IllegalStateException("authority_replay");
-        }
+        DurableMarker.create(dir, name, value, "authority_replay");
     }
 
     private static void requireEvidence(Artifact evidence, String caseId) {
@@ -115,8 +106,7 @@ public final class EvidenceAuthorizedTransition {
         String keyFingerprint = pinned.legacyPemFingerprint();
         String revocationId = sha(("revoke\n" + keyFingerprint + "\n" + nonce).getBytes(StandardCharsets.UTF_8));
         File dir = new File(authorityState, "revoked");
-        if (!dir.exists() && !dir.mkdirs()) throw new IOException("state_dir_create_failed");
-        Files.writeString(new File(dir, revocationId).toPath(), "revoked\n", StandardCharsets.UTF_8);
+        DurableMarker.create(dir, revocationId, "revoked\n", "authority_revocation_marker_exists");
     }
 
     public static byte[] canonicalGrant(String caseId, String evidenceId, String evidenceHash,

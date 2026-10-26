@@ -23,7 +23,7 @@ jobs:
             integration/relay/OperatorKeyTrust.java \
             integration/relay/OperatorKeyTrustTest.java \
             integration/relay/DurableMarker.java \
-            integration/relay/DurableMarkerTest.java
+            integration/relay/DurableMarkerTest.java \
             integration/relay/RevocationAuthorization.java \
             integration/relay/RevocationAuthorizationTest.java
       - name: Run isolated trust-pin regression

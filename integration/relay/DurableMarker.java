@@ -30,11 +30,19 @@ public final class DurableMarker {
         }
     }
 
-    private static void ensureDirectory(Path dir) throws IOException {
-        Path parent = dir.getParent();
-        if (Files.isSymbolicLink(dir) || (parent != null && Files.isSymbolicLink(parent))) {
-            throw new SecurityException("authority_state_not_directory");
+    private static void rejectSymlinkAncestors(Path path) {
+        for (Path current = path; current != null; current = current.getParent()) {
+            if (Files.isSymbolicLink(current)) {
+                throw new SecurityException("authority_state_not_directory");
+            }
         }
+    }
+
+    private static void ensureDirectory(Path dir) throws IOException {
+        // Check every component, not only the leaf and its immediate parent:
+        // an existing grandparent symlink can redirect a seemingly normal path.
+        rejectSymlinkAncestors(dir);
+
         List<Path> missing = new ArrayList<>();
         for (Path current = dir; current != null
                 && !Files.exists(current, LinkOption.NOFOLLOW_LINKS); current = current.getParent()) {
@@ -49,8 +57,11 @@ public final class DurableMarker {
                 Files.createDirectories(dir);
             }
         }
-        if (Files.isSymbolicLink(dir) || !Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)
-                || (parent != null && Files.isSymbolicLink(parent))) {
+
+        // Recheck the entire path after creation to catch a replaced ancestor
+        // observed between the initial validation and directory creation.
+        rejectSymlinkAncestors(dir);
+        if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
             throw new SecurityException("authority_state_not_directory");
         }
         for (Path created : missing) {

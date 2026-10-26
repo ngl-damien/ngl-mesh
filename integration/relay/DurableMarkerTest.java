@@ -35,6 +35,12 @@ public final class DurableMarkerTest {
             check(Files.readString(used.resolve(name), StandardCharsets.UTF_8).equals("consumed\n"),
                 "marker bytes must be written before success returns");
 
+            Path nestedUsed = root.resolve("deep").resolve("nested").resolve("used");
+            String nestedName = "d".repeat(64);
+            DurableMarker.create(nestedUsed.toFile(), nestedName, "nested marker\n", "authority_replay");
+            check(Files.readString(nestedUsed.resolve(nestedName), StandardCharsets.UTF_8).equals("nested marker\n"),
+                "nested marker creation must complete after syncing each newly created directory entry");
+
             expect("authority_replay",
                 () -> DurableMarker.create(used.toFile(), name, "replacement\n", "authority_replay"));
             check(Files.readString(used.resolve(name), StandardCharsets.UTF_8).equals("consumed\n"),

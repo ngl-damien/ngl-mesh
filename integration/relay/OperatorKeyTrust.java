@@ -35,7 +35,10 @@ public final class OperatorKeyTrust {
         String environment = System.getenv("NGL_RELAY_OPERATOR_KEY_SHA256");
         if (environment != null && !environment.isBlank()) return environment.trim();
         String property = System.getProperty("ngl.relay.operatorKeySha256");
-        return property == null ? null : property.trim();
+        // A mutable JVM property is not a production trust root. Tests/dev must
+        // opt in explicitly; production deployments must provision the environment pin.
+        if (property == null || !Boolean.getBoolean("ngl.relay.allowTestOperatorKeyProperty")) return null;
+        return property.trim();
     }
 
     public static String fingerprint(PublicKey key) throws Exception {

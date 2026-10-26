@@ -21,6 +21,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/ngl-operator-key-trust"
           javac -d "$RUNNER_TEMP/ngl-operator-key-trust" \
             integration/relay/OperatorKeyTrust.java \
-            integration/relay/OperatorKeyTrustTest.java
+            integration/relay/OperatorKeyTrustTest.java \
+            integration/relay/DurableMarker.java \
+            integration/relay/DurableMarkerTest.java
       - name: Run isolated trust-pin regression
         run: java -cp "$RUNNER_TEMP/ngl-operator-key-trust" ngl.relay.integration.OperatorKeyTrustTest
+      - name: Run durable marker regression
+        run: java -cp "$RUNNER_TEMP/ngl-operator-key-trust" ngl.relay.integration.DurableMarkerTest

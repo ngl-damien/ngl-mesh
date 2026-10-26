@@ -69,9 +69,11 @@ public final class DurableMarker {
                 throw new SecurityException("authority_state_not_directory");
             }
         }
-        // Persist every newly created directory entry from the parent outward.
-        for (Path created : missing) {
-            Path containing = created.getParent();
+
+        // Sync the parent entry before syncing entries created inside it:
+        // the missing list is leaf-first, so walk it in reverse (outermost first).
+        for (int i = missing.size() - 1; i >= 0; i--) {
+            Path containing = missing.get(i).getParent();
             if (containing != null) syncDirectory(containing);
         }
     }

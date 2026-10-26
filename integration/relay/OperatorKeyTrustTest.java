@@ -44,7 +44,34 @@ public final class OperatorKeyTrustTest {
         Files.writeString(path, pem(key), StandardCharsets.UTF_8);
     }
 
+    private static void testPropertyFallbackRequiresExplicitOptIn() {
+        String environment = System.getenv("NGL_RELAY_OPERATOR_KEY_SHA256");
+        if (environment != null && !environment.isBlank()) {
+            check(environment.trim().equals(OperatorKeyTrust.configuredFingerprint()),
+                "configured environment pin must take precedence");
+            return;
+        }
+        String previousPin = System.getProperty("ngl.relay.operatorKeySha256");
+        String previousOptIn = System.getProperty("ngl.relay.allowTestOperatorKeyProperty");
+        String testPin = "a".repeat(64);
+        try {
+            System.setProperty("ngl.relay.operatorKeySha256", testPin);
+            System.clearProperty("ngl.relay.allowTestOperatorKeyProperty");
+            check(OperatorKeyTrust.configuredFingerprint() == null,
+                "property pin must be ignored without explicit test/development opt-in");
+            System.setProperty("ngl.relay.allowTestOperatorKeyProperty", "true");
+            check(testPin.equals(OperatorKeyTrust.configuredFingerprint()),
+                "property pin may be used only after explicit opt-in");
+        } finally {
+            if (previousPin == null) System.clearProperty("ngl.relay.operatorKeySha256");
+            else System.setProperty("ngl.relay.operatorKeySha256", previousPin);
+            if (previousOptIn == null) System.clearProperty("ngl.relay.allowTestOperatorKeyProperty");
+            else System.setProperty("ngl.relay.allowTestOperatorKeyProperty", previousOptIn);
+        }
+    }
+
     public static void main(String[] args) throws Exception {
+        testPropertyFallbackRequiresExplicitOptIn();
         Path directory = Files.createTempDirectory("ngl-operator-key-trust-");
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("Ed25519");

@@ -102,3 +102,10 @@ has been called. There is no source/APK behavioral-equivalence proof. The next
 integration boundary is to invoke this bridge from a recovered Android source
 build and test import/restart behavior on a device, retaining the current APK
 as the reference.
+
+
+## Signed revocation authorization — 2026-10-26
+
+New revocations require an Ed25519 signature over the domain-separated `ngl-evidence-revocation-v1` statement binding the pinned operator SPKI fingerprint, nonce, and expiry. Invalid signatures, malformed nonces, and expired statements fail before creating a marker. The marker identifier continues to use the validated PEM-byte fingerprint plus nonce so existing revocation markers remain effective. The isolated `RevocationAuthorizationTest` runs in the operator-key-trust workflow; it does not require the recovered APK, RAE report, or a device.
+
+This is a local Java boundary, not a remote service. It does not prove operator identity, provision a private key, or establish production call-site isolation.

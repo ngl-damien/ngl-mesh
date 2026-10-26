@@ -100,13 +100,13 @@ public final class EvidenceAuthorizedTransition {
         return store.appendArtifact(caseId, event);
     }
 
-    public static void revoke(File operatorPublicKey, String nonce, File authorityState) throws Exception {
-        OperatorKeyTrust.PinnedKey pinned = OperatorKeyTrust.loadPinnedKey(operatorPublicKey, OperatorKeyTrust.configuredFingerprint());
-        PublicKey trustedKey = pinned.key();
-        String keyFingerprint = pinned.legacyPemFingerprint();
-        String revocationId = sha(("revoke\n" + keyFingerprint + "\n" + nonce).getBytes(StandardCharsets.UTF_8));
-        File dir = new File(authorityState, "revoked");
-        DurableMarker.create(dir, revocationId, "revoked\n", "authority_revocation_marker_exists");
+    public static void revoke(File operatorPublicKey, String nonce, long expiresAt,
+                              byte[] signature, File authorityState) throws Exception {
+        RevocationAuthorization.revoke(operatorPublicKey, nonce, expiresAt, signature, authorityState);
+    }
+
+    public static byte[] canonicalRevocation(String operatorSpkiFingerprint, String nonce, long expiresAt) {
+        return RevocationAuthorization.canonical(operatorSpkiFingerprint, nonce, expiresAt);
     }
 
     public static byte[] canonicalGrant(String caseId, String evidenceId, String evidenceHash,

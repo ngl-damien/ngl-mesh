@@ -29,6 +29,8 @@ public final class OperatorKeyTrust {
 
     private OperatorKeyTrust() {}
 
+    public record PinnedKey(PublicKey key, String spkiFingerprint, String legacyPemFingerprint) {}
+
     static String configuredFingerprint() {
         String environment = System.getenv("NGL_RELAY_OPERATOR_KEY_SHA256");
         if (environment != null && !environment.isBlank()) return environment.trim();
@@ -41,7 +43,7 @@ public final class OperatorKeyTrust {
         return HexFormat.of().formatHex(digest);
     }
 
-    public static PublicKey loadPinnedPublicKey(File file, String expectedFingerprint) throws Exception {
+    public static PinnedKey loadPinnedKey(File file, String expectedFingerprint) throws Exception {
         if (expectedFingerprint == null || expectedFingerprint.isBlank())
             throw new SecurityException("operator_trust_pin_missing");
         String expected = expectedFingerprint.trim();
@@ -113,6 +115,12 @@ public final class OperatorKeyTrust {
                 expected.getBytes(StandardCharsets.US_ASCII))) {
             throw new SecurityException("operator_trust_pin_mismatch");
         }
-        return key;
+        String legacyPemFingerprint = HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(bytes));
+        return new PinnedKey(key, actual, legacyPemFingerprint);
+    }
+
+    public static PublicKey loadPinnedPublicKey(File file, String expectedFingerprint) throws Exception {
+        return loadPinnedKey(file, expectedFingerprint).key();
     }
 }

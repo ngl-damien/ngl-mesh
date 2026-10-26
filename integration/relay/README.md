@@ -39,9 +39,10 @@ The authority transition requires a separately provisioned SHA-256 fingerprint
 of the operator's DER SubjectPublicKeyInfo. Configure
 `NGL_RELAY_OPERATOR_KEY_SHA256` in the trusted host environment before accepting
 requests. A JVM system property named `ngl.relay.operatorKeySha256` is a
-test/development fallback only. Never derive either value from the incoming
-request or from the supplied public-key file. Missing, malformed, or mismatched
-pins fail closed. The trust pin uses DER SubjectPublicKeyInfo, while replay and
+test/development fallback only, and is ignored unless the separate
+`ngl.relay.allowTestOperatorKeyProperty=true` opt-in is set. Never set that opt-in
+in production. Never derive either value from the incoming request or from the
+supplied public-key file. Missing, malformed, or mismatched pins fail closed. The trust pin uses DER SubjectPublicKeyInfo, while replay and
 revocation markers retain the legacy SHA-256 of the validated PEM bytes so existing
 local marker state is not silently invalidated. Do not reformat the key file without
 a separate marker migration.

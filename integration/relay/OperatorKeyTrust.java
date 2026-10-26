@@ -13,7 +13,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.KeyFactory;
 import java.security.MessageDigest;
 import java.security.PublicKey;
-import java.security.SecurityException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.HexFormat;

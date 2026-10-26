@@ -3,6 +3,7 @@ package ngl.relay.integration;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
@@ -53,6 +54,17 @@ public final class DurableMarkerTest {
             Files.createSymbolicLink(directoryLink, used);
             expect("authority_state_not_directory",
                 () -> DurableMarker.create(directoryLink.toFile(), "b".repeat(64), "x\n", "authority_replay"));
+
+            Path realAncestor = root.resolve("real-ancestor");
+            Path realNested = realAncestor.resolve("nested");
+            Files.createDirectories(realNested);
+            Path ancestorLink = root.resolve("ancestor-link");
+            Files.createSymbolicLink(ancestorLink, realAncestor);
+            Path redirected = ancestorLink.resolve("nested").resolve("used");
+            expect("authority_state_not_directory",
+                () -> DurableMarker.create(redirected.toFile(), "c".repeat(64), "x\n", "authority_replay"));
+            check(!Files.exists(realNested.resolve("used"), LinkOption.NOFOLLOW_LINKS),
+                "a symlinked grandparent must not redirect marker creation");
 
             expect("authority_marker_invalid",
                 () -> DurableMarker.create(used.toFile(), "../victim.txt", "overwrite\n", "authority_replay"));

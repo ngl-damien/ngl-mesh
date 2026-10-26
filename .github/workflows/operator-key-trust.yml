@@ -1,0 +1,26 @@
+name: Relay operator-key trust
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  operator-key-trust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile isolated trust-pin regression
+        run: |
+          mkdir -p "$RUNNER_TEMP/ngl-operator-key-trust"
+          javac -d "$RUNNER_TEMP/ngl-operator-key-trust" \
+            integration/relay/OperatorKeyTrust.java \
+            integration/relay/OperatorKeyTrustTest.java
+      - name: Run isolated trust-pin regression
+        run: java -cp "$RUNNER_TEMP/ngl-operator-key-trust" ngl.relay.integration.OperatorKeyTrustTest

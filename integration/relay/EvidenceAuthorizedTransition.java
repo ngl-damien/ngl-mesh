@@ -79,11 +79,12 @@ public final class EvidenceAuthorizedTransition {
             throw new IllegalArgumentException("authority_nonce_invalid");
 
         String message = canonical(caseId, evidence.id, evidence.hash, ACTION, nonce, expiresAt);
-        PublicKey trustedKey = OperatorKeyTrust.loadPinnedPublicKey(operatorPublicKey, OperatorKeyTrust.configuredFingerprint());
+        OperatorKeyTrust.PinnedKey pinned = OperatorKeyTrust.loadPinnedKey(operatorPublicKey, OperatorKeyTrust.configuredFingerprint());
+        PublicKey trustedKey = pinned.key();
         if (!verify(trustedKey, message.getBytes(StandardCharsets.UTF_8), signature))
             throw new SecurityException("authority_signature_invalid");
 
-        String keyFingerprint = OperatorKeyTrust.fingerprint(trustedKey);
+        String keyFingerprint = pinned.legacyPemFingerprint();
         String revocationId = sha(("revoke\n" + keyFingerprint + "\n" + nonce).getBytes(StandardCharsets.UTF_8));
         if (new File(new File(authorityState, "revoked"), revocationId).isFile())
             throw new SecurityException("authority_revoked");
@@ -109,8 +110,9 @@ public final class EvidenceAuthorizedTransition {
     }
 
     public static void revoke(File operatorPublicKey, String nonce, File authorityState) throws Exception {
-        PublicKey trustedKey = OperatorKeyTrust.loadPinnedPublicKey(operatorPublicKey, OperatorKeyTrust.configuredFingerprint());
-        String keyFingerprint = OperatorKeyTrust.fingerprint(trustedKey);
+        OperatorKeyTrust.PinnedKey pinned = OperatorKeyTrust.loadPinnedKey(operatorPublicKey, OperatorKeyTrust.configuredFingerprint());
+        PublicKey trustedKey = pinned.key();
+        String keyFingerprint = pinned.legacyPemFingerprint();
         String revocationId = sha(("revoke\n" + keyFingerprint + "\n" + nonce).getBytes(StandardCharsets.UTF_8));
         File dir = new File(authorityState, "revoked");
         if (!dir.exists() && !dir.mkdirs()) throw new IOException("state_dir_create_failed");

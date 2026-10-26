@@ -78,6 +78,18 @@ report about the correct APK is still imported only as external data. It cannot
 authorize a command. The RAE host runtime separately requires signed,
 operation-specific grants for its build execution.
 
+## Replay and revocation durability
+
+One-time replay and revocation markers are created with exclusive file creation,
+then the marker contents and containing directory are synced before the
+authorized append is attempted. Newly created state directories have their
+parent entries synced as well. Existing marker paths and symlink targets are
+never overwritten. If file or directory sync fails, the transition fails closed;
+a marker may nevertheless remain, so a grant can be consumed without an append.
+That is an intentional safe failure, not a multi-file transaction. Repeating a
+revocation whose marker already exists returns a conflict rather than rewriting
+it. Filesystems that cannot sync the directory do not receive a success result.
+
 ## Limits
 
 The public control-surface JSON Schema remains a representation contract.

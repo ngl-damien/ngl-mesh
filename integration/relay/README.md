@@ -33,6 +33,29 @@ source, compiles it with the new bridge, runs the 131 recovered checks and the
 source is a `specification_gap`. It does not execute historical build scripts,
 use archived binaries or keystores, or contact real providers.
 
+## Operator-key trust boundary
+
+The authority transition requires a separately provisioned SHA-256 fingerprint
+of the operator's DER SubjectPublicKeyInfo. Configure
+`NGL_RELAY_OPERATOR_KEY_SHA256` in the trusted host environment before accepting
+requests. A JVM system property named `ngl.relay.operatorKeySha256` is a
+test/development fallback only. Never derive either value from the incoming
+request or from the supplied public-key file. Missing, malformed, or mismatched
+pins fail closed; replay and revocation markers use the pinned DER fingerprint,
+not the PEM file's formatting.
+
+The isolated trust-pin regression can run without the recovered APK/source/report:
+
+```sh
+mkdir -p /tmp/ngl-operator-key-trust
+javac -d /tmp/ngl-operator-key-trust integration/relay/OperatorKeyTrust.java integration/relay/OperatorKeyTrustTest.java
+java -cp /tmp/ngl-operator-key-trust ngl.relay.integration.OperatorKeyTrustTest
+```
+
+The broader bridge harness still requires the recovered-source archive, reference
+APK, and RAE report described above. A passing isolated test does not replace
+that integration run or prove real-world operator identity.
+
 ## Integration contract
 
 `RaeEvidenceBridge.append(store, existingCaseId, apk, report)`:

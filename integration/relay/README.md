@@ -41,8 +41,10 @@ of the operator's DER SubjectPublicKeyInfo. Configure
 requests. A JVM system property named `ngl.relay.operatorKeySha256` is a
 test/development fallback only. Never derive either value from the incoming
 request or from the supplied public-key file. Missing, malformed, or mismatched
-pins fail closed; replay and revocation markers use the pinned DER fingerprint,
-not the PEM file's formatting.
+pins fail closed. The trust pin uses DER SubjectPublicKeyInfo, while replay and
+revocation markers retain the legacy SHA-256 of the validated PEM bytes so existing
+local marker state is not silently invalidated. Do not reformat the key file without
+a separate marker migration.
 
 The isolated trust-pin regression can run without the recovered APK/source/report:
 

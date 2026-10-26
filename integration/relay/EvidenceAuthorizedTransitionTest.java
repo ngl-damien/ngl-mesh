@@ -17,10 +17,10 @@ public final class EvidenceAuthorizedTransitionTest {
     }
 
     private static void writePublicKey(File file, PublicKey key) throws Exception {
-        String pem = "-----BEGIN PUBLIC KEY-----\\n"
-            + java.util.Base64.getMimeEncoder(64, "\\n".getBytes(StandardCharsets.UTF_8))
+        String pem = "-----BEGIN PUBLIC KEY-----\n"
+            + java.util.Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.UTF_8))
                 .encodeToString(key.getEncoded())
-            + "\\n-----END PUBLIC KEY-----\\n";
+            + "\n-----END PUBLIC KEY-----\n";
         Files.writeString(file.toPath(), pem, StandardCharsets.UTF_8);
     }
 

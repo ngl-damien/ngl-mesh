@@ -10,6 +10,11 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
 
 /**
  * Creates replay/revocation markers without following an existing marker path.
@@ -18,6 +23,47 @@ import java.nio.file.StandardOpenOption;
  */
 public final class DurableMarker {
     private DurableMarker() {}
+
+    private static void syncDirectory(Path directory) throws IOException {
+        try (FileChannel channel = FileChannel.open(directory, StandardOpenOption.READ)) {
+            channel.force(true);
+        }
+    }
+
+    private static void ensureDirectory(Path dir) throws IOException {
+        Path parent = dir.getParent();
+        if (Files.isSymbolicLink(dir) || (parent != null && Files.isSymbolicLink(parent))) {
+            throw new SecurityException("authority_state_not_directory");
+        }
+        List<Path> missing = new ArrayList<>();
+        for (Path current = dir; current != null
+                && !Files.exists(current, LinkOption.NOFOLLOW_LINKS); current = current.getParent()) {
+            missing.add(current);
+        }
+        if (!missing.isEmpty()) {
+            try {
+                Files.createDirectories(dir, PosixFilePermissions.asFileAttribute(
+                    EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE,
+                        PosixFilePermission.OWNER_EXECUTE)));
+            } catch (UnsupportedOperationException unsupported) {
+                Files.createDirectories(dir);
+            }
+        }
+        if (Files.isSymbolicLink(dir) || !Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)
+                || (parent != null && Files.isSymbolicLink(parent))) {
+            throw new SecurityException("authority_state_not_directory");
+        }
+        for (Path created : missing) {
+            if (Files.isSymbolicLink(created) || !Files.isDirectory(created, LinkOption.NOFOLLOW_LINKS)) {
+                throw new SecurityException("authority_state_not_directory");
+            }
+        }
+        // Persist every newly created directory entry from the parent outward.
+        for (Path created : missing) {
+            Path containing = created.getParent();
+            if (containing != null) syncDirectory(containing);
+        }
+    }
 
     public static void create(File directory, String name, String value, String conflictCode)
             throws IOException {
@@ -28,12 +74,8 @@ public final class DurableMarker {
         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         if (bytes.length > 4096) throw new IllegalArgumentException("authority_marker_too_large");
 
-        Path dir = directory.toPath();
-        if (!Files.exists(dir, LinkOption.NOFOLLOW_LINKS)) Files.createDirectories(dir);
-        if (Files.isSymbolicLink(dir) || !Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
-            throw new SecurityException("authority_state_not_directory");
-        }
-
+        Path dir = directory.toPath().toAbsolutePath().normalize();
+        ensureDirectory(dir);
         Path target = dir.resolve(name);
         try (FileChannel file = FileChannel.open(target,
                 StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
@@ -47,8 +89,6 @@ public final class DurableMarker {
 
         // A successful file fsync alone does not guarantee its new directory
         // entry survives a crash. Fail closed if this filesystem cannot sync it.
-        try (FileChannel parent = FileChannel.open(dir, StandardOpenOption.READ)) {
-            parent.force(true);
-        }
+        syncDirectory(dir);
     }
 }

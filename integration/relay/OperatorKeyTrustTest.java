@@ -7,9 +7,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
 import java.security.PublicKey;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.stream.Stream;
 
 public final class OperatorKeyTrustTest {
@@ -56,9 +58,13 @@ public final class OperatorKeyTrustTest {
             writeKey(attackerFile, attacker.getPublic());
             String pin = OperatorKeyTrust.fingerprint(trusted.getPublic());
 
-            PublicKey loaded = OperatorKeyTrust.loadPinnedPublicKey(trustedFile.toFile(), pin);
-            check(Arrays.equals(loaded.getEncoded(), trusted.getPublic().getEncoded()),
+            OperatorKeyTrust.PinnedKey pinned = OperatorKeyTrust.loadPinnedKey(trustedFile.toFile(), pin);
+            check(Arrays.equals(pinned.key().getEncoded(), trusted.getPublic().getEncoded()),
                 "correctly pinned key must load");
+            String expectedLegacyFingerprint = HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(trustedFile)));
+            check(pinned.legacyPemFingerprint().equals(expectedLegacyFingerprint),
+                "legacy marker fingerprint must preserve the validated PEM bytes");
 
             expect("operator_trust_pin_mismatch",
                 () -> OperatorKeyTrust.loadPinnedPublicKey(attackerFile.toFile(), pin));

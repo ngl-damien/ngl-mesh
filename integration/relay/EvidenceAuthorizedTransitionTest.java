@@ -109,7 +109,21 @@ public final class EvidenceAuthorizedTransitionTest {
         byte[] revokedMessage = EvidenceAuthorizedTransition.canonicalGrant(
             meta.caseId, evidence.id, evidence.hash, revokedNonce, expiry);
         byte[] revokedSignature = sign(operator.getPrivate(), revokedMessage);
-        EvidenceAuthorizedTransition.revoke(publicKey, revokedNonce, state);
+        long revocationExpiry = System.currentTimeMillis() + 60_000;
+        String operatorFingerprint = OperatorKeyTrust.fingerprint(operator.getPublic());
+        byte[] revocationStatement = EvidenceAuthorizedTransition.canonicalRevocation(
+            operatorFingerprint, revokedNonce, revocationExpiry);
+        KeyPair outsider = generator.generateKeyPair();
+        try {
+            EvidenceAuthorizedTransition.revoke(publicKey, revokedNonce, revocationExpiry,
+                sign(outsider.getPrivate(), revocationStatement), state);
+            throw new AssertionError("outsider revocation accepted");
+        } catch (SecurityException expected) {
+            check(expected.getMessage().contains("authority_revocation_signature_invalid"),
+                "outsider revocation rejection");
+        }
+        EvidenceAuthorizedTransition.revoke(publicKey, revokedNonce, revocationExpiry,
+            sign(operator.getPrivate(), revocationStatement), state);
         try {
             EvidenceAuthorizedTransition.apply(store, meta.caseId, evidence.id, publicKey, revokedNonce, expiry,
                 revokedSignature, state);

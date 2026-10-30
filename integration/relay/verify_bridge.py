@@ -38,7 +38,10 @@ with tempfile.TemporaryDirectory(prefix='ngl-relay-bridge-') as tmp:
                        str(here/'RaeEvidenceBridge.java'),
                        str(here/'RaeEvidenceBridgeTest.java'),
                        str(here/'EvidenceAuthorizedTransition.java'),
-                       str(here/'EvidenceAuthorizedTransitionTest.java')
+                       str(here/'EvidenceAuthorizedTransitionTest.java'),
+                       str(here/'OperatorKeyTrust.java'),
+                       str(here/'RevocationAuthorization.java'),
+                       str(here/'DurableMarker.java')
                    ], check=True)
     for suite in ['CaseStoreTest','MethodologyEngineTest','ContextBuilderTest','ProviderTransportTest']:
         subprocess.run(['java','-cp',str(classes),'ngl.relay.core.'+suite],check=True,timeout=30)

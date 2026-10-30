@@ -1,0 +1,35 @@
+name: Relay bridge input contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: relay-bridge-input-contract-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  strict-utf8:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile isolated evidence-input contract tests
+        run: |
+          mkdir -p "$RUNNER_TEMP/ngl-relay-utf8"
+          javac -d "$RUNNER_TEMP/ngl-relay-utf8" \
+            integration/relay/StrictUtf8.java \
+            integration/relay/StrictUtf8Test.java \
+            integration/relay/RaeEvidenceBridgeSourceTest.java
+      - name: Reject malformed UTF-8 and preserve valid byte round-trips
+        run: java -cp "$RUNNER_TEMP/ngl-relay-utf8" ngl.relay.integration.StrictUtf8Test
+      - name: Verify the RAE bridge uses strict decoding before parsing
+        run: java -cp "$RUNNER_TEMP/ngl-relay-utf8" ngl.relay.integration.RaeEvidenceBridgeSourceTest integration/relay/RaeEvidenceBridge.java

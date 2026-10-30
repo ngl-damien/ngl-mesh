@@ -55,7 +55,7 @@ public final class RaeEvidenceBridge {
             throw new IllegalArgumentException("reference_identity_mismatch");
         }
         byte[] reportBytes = read(report, 16 * 1024 * 1024);
-        String reportText = new String(reportBytes, StandardCharsets.UTF_8);
+        String reportText = StrictUtf8.decode(reportBytes);
         CoreJson.JObject root = CoreJson.parseObject(reportText);
         CoreJson.JObject observed = root.getObject("observation");
         CoreJson.JObject artifact = observed == null ? null : observed.getObject("artifact");

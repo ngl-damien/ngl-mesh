@@ -33,6 +33,32 @@ source, compiles it with the new bridge, runs the 131 recovered checks and the
 source is a `specification_gap`. It does not execute historical build scripts,
 use archived binaries or keystores, or contact real providers.
 
+## Operator-key trust boundary
+
+The authority transition requires a separately provisioned SHA-256 fingerprint
+of the operator's DER SubjectPublicKeyInfo. Configure
+`NGL_RELAY_OPERATOR_KEY_SHA256` in the trusted host environment before accepting
+requests. A JVM system property named `ngl.relay.operatorKeySha256` is a
+test/development fallback only, and is ignored unless the separate
+`ngl.relay.allowTestOperatorKeyProperty=true` opt-in is set. Never set that opt-in
+in production. Never derive either value from the incoming request or from the
+supplied public-key file. Missing, malformed, or mismatched pins fail closed. The trust pin uses DER SubjectPublicKeyInfo, while replay and
+revocation markers retain the legacy SHA-256 of the validated PEM bytes so existing
+local marker state is not silently invalidated. Do not reformat the key file without
+a separate marker migration.
+
+The isolated trust-pin regression can run without the recovered APK/source/report:
+
+```sh
+mkdir -p /tmp/ngl-operator-key-trust
+javac -d /tmp/ngl-operator-key-trust integration/relay/OperatorKeyTrust.java integration/relay/OperatorKeyTrustTest.java
+java -cp /tmp/ngl-operator-key-trust ngl.relay.integration.OperatorKeyTrustTest
+```
+
+The broader bridge harness still requires the recovered-source archive, reference
+APK, and RAE report described above. A passing isolated test does not replace
+that integration run or prove real-world operator identity.
+
 ## Integration contract
 
 `RaeEvidenceBridge.append(store, existingCaseId, apk, report)`:
@@ -52,6 +78,18 @@ report about the correct APK is still imported only as external data. It cannot
 authorize a command. The RAE host runtime separately requires signed,
 operation-specific grants for its build execution.
 
+## Replay and revocation durability
+
+One-time replay and revocation markers are created with exclusive file creation,
+then the marker contents and containing directory are synced before the
+authorized append is attempted. Newly created state directories have their
+parent entries synced as well. Existing marker paths and symlink targets are
+never overwritten. If file or directory sync fails, the transition fails closed;
+a marker may nevertheless remain, so a grant can be consumed without an append.
+That is an intentional safe failure, not a multi-file transaction. Repeating a
+revocation whose marker already exists returns a conflict rather than rewriting
+it. Filesystems that cannot sync the directory do not receive a success result.
+
 ## Limits
 
 The public control-surface JSON Schema remains a representation contract.
@@ -64,3 +102,10 @@ has been called. There is no source/APK behavioral-equivalence proof. The next
 integration boundary is to invoke this bridge from a recovered Android source
 build and test import/restart behavior on a device, retaining the current APK
 as the reference.
+
+
+## Signed revocation authorization — 2026-10-26
+
+New revocations require an Ed25519 signature over the domain-separated `ngl-evidence-revocation-v1` statement binding the pinned operator SPKI fingerprint, nonce, and expiry. Invalid signatures, malformed nonces, and expired statements fail before creating a marker. The marker identifier continues to use the validated PEM-byte fingerprint plus nonce so existing revocation markers remain effective. The isolated `RevocationAuthorizationTest` runs in the operator-key-trust workflow; it does not require the recovered APK, RAE report, or a device.
+
+This is a local Java boundary, not a remote service. It does not prove operator identity, provision a private key, or establish production call-site isolation.

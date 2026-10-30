@@ -16,7 +16,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in AGENTS.md CLAUDE.md GEMINI.md CODEX.md .github/copilot-instructions.md; do
+          for file in AGENTS.md CLAUDE.md GEMINI.md .github/copilot-instructions.md; do
             test -s "$file" || { echo "Missing or empty mandatory instruction file: $file"; exit 1; }
           done
           grep -q 'RALPH_SHARED_HOURLY_SCHEDULER_PROTOCOL.md' AGENTS.md

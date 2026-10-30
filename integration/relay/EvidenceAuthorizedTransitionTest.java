@@ -113,7 +113,8 @@ public final class EvidenceAuthorizedTransitionTest {
         String operatorFingerprint = OperatorKeyTrust.fingerprint(operator.getPublic());
         byte[] revocationStatement = EvidenceAuthorizedTransition.canonicalRevocation(
             operatorFingerprint, revokedNonce, revocationExpiry);
-        KeyPair outsider = generator.generateKeyPair();
+        // Reuse the outsider key from the earlier negative grant check.
+        
         try {
             EvidenceAuthorizedTransition.revoke(publicKey, revokedNonce, revocationExpiry,
                 sign(outsider.getPrivate(), revocationStatement), state);

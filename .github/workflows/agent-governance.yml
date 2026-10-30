@@ -1,0 +1,23 @@
+name: agent-governance
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  required-agent-instructions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require discoverable agent instructions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in AGENTS.md CLAUDE.md GEMINI.md .github/copilot-instructions.md; do
+            test -s "$file" || { echo "Missing or empty mandatory instruction file: $file"; exit 1; }
+          done
+          grep -q 'RALPH_SHARED_HOURLY_SCHEDULER_PROTOCOL.md' AGENTS.md
+          echo "Mandatory agent instruction entry points are present."

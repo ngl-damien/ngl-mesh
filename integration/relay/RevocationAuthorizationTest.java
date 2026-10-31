@@ -38,9 +38,9 @@ public final class RevocationAuthorizationTest {
         Files.writeString(path, pem, StandardCharsets.UTF_8);
     }
     public static void main(String[] args) throws Exception {
-        check(EvidenceAuthorizedTransition.isExpiredAt(100L, 100L), "revocation is expired at exact expiry instant");
-        check(EvidenceAuthorizedTransition.isExpiredAt(99L, 100L), "revocation is expired after its deadline");
-        check(!EvidenceAuthorizedTransition.isExpiredAt(101L, 100L), "revocation remains valid before its deadline");
+        check(RevocationAuthorization.isExpiredAt(100L, 100L), "revocation is expired at exact expiry instant");
+        check(RevocationAuthorization.isExpiredAt(99L, 100L), "revocation is expired after its deadline");
+        check(!RevocationAuthorization.isExpiredAt(101L, 100L), "revocation remains valid before its deadline");
         String oldPin = System.getProperty("ngl.relay.operatorKeySha256");
         String oldOptIn = System.getProperty("ngl.relay.allowTestOperatorKeyProperty");
         Path root = Files.createTempDirectory("ngl-revocation-auth-");

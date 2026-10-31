@@ -35,11 +35,15 @@ public final class DurableMarker {
     }
 
     private static void validateAncestors(Path path) throws IOException {
+        Path immediateParent = path.getParent();
         for (Path current = path; current != null; current = current.getParent()) {
             if (Files.isSymbolicLink(current)) {
                 throw new SecurityException("authority_state_not_directory");
             }
-            if (!Files.exists(current, LinkOption.NOFOLLOW_LINKS)) continue;
+            // The leaf and its immediate parent receive the stricter private
+            // owner/mode check below. This loop protects the remaining ancestors.
+            if (current.equals(path) || current.equals(immediateParent) ||
+                    !Files.exists(current, LinkOption.NOFOLLOW_LINKS)) continue;
 
             // A private leaf is still replaceable if a non-sticky ancestor grants
             // group/other write access to the directory entry containing it.

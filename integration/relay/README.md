@@ -42,10 +42,7 @@ requests. A JVM system property named `ngl.relay.operatorKeySha256` is a
 test/development fallback only, and is ignored unless the separate
 `ngl.relay.allowTestOperatorKeyProperty=true` opt-in is set. Never set that opt-in
 in production. Never derive either value from the incoming request or from the
-supplied public-key file. Missing, malformed, or mismatched pins fail closed. The trust pin uses DER SubjectPublicKeyInfo, while replay and
-revocation markers retain the legacy SHA-256 of the validated PEM bytes so existing
-local marker state is not silently invalidated. Do not reformat the key file without
-a separate marker migration.
+supplied public-key file. Missing, malformed, or mismatched pins fail closed. The trust pin uses DER SubjectPublicKeyInfo. New replay and revocation markers use versioned, domain-separated IDs derived from that stable fingerprint, so the same key remains bound across PEM line-ending or whitespace changes. New writes also dual-write the prior PEM-byte IDs for compatibility with older code. When a legacy marker is found using the original PEM bytes, the bridge durably creates its stable SPKI marker before returning the blocked result. Keep the original key bytes until existing legacy markers have been checked/migrated; this repository has no provisioned real key or production marker store.
 
 The isolated trust-pin regression can run without the recovered APK/source/report:
 
@@ -106,7 +103,7 @@ as the reference.
 
 ## Signed revocation authorization — 2026-10-26
 
-New revocations require an Ed25519 signature over the domain-separated `ngl-evidence-revocation-v1` statement binding the pinned operator SPKI fingerprint, nonce, and expiry. Invalid signatures, malformed nonces, and expired statements fail before creating a marker. The marker identifier continues to use the validated PEM-byte fingerprint plus nonce so existing revocation markers remain effective. The isolated `RevocationAuthorizationTest` runs in the operator-key-trust workflow; it does not require the recovered APK, RAE report, or a device.
+New revocations require an Ed25519 signature over the domain-separated `ngl-evidence-revocation-v1` statement binding the pinned operator SPKI fingerprint, nonce, and expiry. Invalid signatures, malformed nonces, and expired statements fail before creating a marker. New revocations write both a stable SPKI-derived marker and the legacy PEM-derived marker for older code. Lookup checks the stable marker first; if it finds an existing legacy marker, it durably writes the stable marker before reporting the nonce revoked. The isolated `RevocationAuthorizationTest` and `AuthorityStateMarkersTest` run in the operator-key-trust workflow without the recovered APK, RAE report, or a device.
 
 This is a local Java boundary, not a remote service. It does not prove operator identity, provision a private key, or establish production call-site isolation.
 

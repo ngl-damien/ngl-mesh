@@ -16,7 +16,18 @@ public final class EvidenceAuthorizedTransitionTest {
         return signer.sign();
     }
 
+    private static void writePublicKey(File file, PublicKey key) throws Exception {
+        String pem = "-----BEGIN PUBLIC KEY-----\n"
+            + java.util.Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.UTF_8))
+                .encodeToString(key.getEncoded())
+            + "\n-----END PUBLIC KEY-----\n";
+        Files.writeString(file.toPath(), pem, StandardCharsets.UTF_8);
+    }
+
     public static void main(String[] args) throws Exception {
+        check(RevocationAuthorization.isExpiredAt(100L, 100L), "grant is expired at exact expiry instant");
+        check(RevocationAuthorization.isExpiredAt(99L, 100L), "grant is expired after its deadline");
+        check(!RevocationAuthorization.isExpiredAt(101L, 100L), "grant remains valid before its deadline");
         File apk = new File(args[0]), report = new File(args[1]), base = new File(args[2]);
         CaseStore store = new CaseStore(base);
         CaseStore.CaseMeta meta = store.createCase("Authority experiment", "Evidence must not authorize itself");
@@ -25,11 +36,9 @@ public final class EvidenceAuthorizedTransitionTest {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("Ed25519");
         KeyPair operator = generator.generateKeyPair();
         File publicKey = new File(base, "operator-public.pem");
-        String pem = "-----BEGIN PUBLIC KEY-----\n"
-            + java.util.Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.UTF_8))
-                .encodeToString(operator.getPublic().getEncoded())
-            + "\n-----END PUBLIC KEY-----\n";
-        Files.writeString(publicKey.toPath(), pem, StandardCharsets.UTF_8);
+        writePublicKey(publicKey, operator.getPublic());
+        System.setProperty("ngl.relay.operatorKeySha256", OperatorKeyTrust.fingerprint(operator.getPublic()));
+        System.setProperty("ngl.relay.allowTestOperatorKeyProperty", "true");
         File state = new File(base, "authority-state");
 
         // 1. Evidence by itself has no transition mechanism.
@@ -38,6 +47,8 @@ public final class EvidenceAuthorizedTransitionTest {
 
         // 2. A forged/self-signed outsider key cannot authorize against operator trust root.
         KeyPair outsider = generator.generateKeyPair();
+        File outsiderPublicKey = new File(base, "outsider-public.pem");
+        writePublicKey(outsiderPublicKey, outsider.getPublic());
         long expiry = System.currentTimeMillis() + 60_000;
         String forgedNonce = "forged-nonce-0001";
         byte[] forgedMessage = EvidenceAuthorizedTransition.canonicalGrant(
@@ -48,6 +59,19 @@ public final class EvidenceAuthorizedTransitionTest {
             throw new AssertionError("forged authority accepted");
         } catch (SecurityException expected) {
             check(expected.getMessage().contains("signature_invalid"), "forged signature rejection");
+        }
+
+        // A caller-supplied attacker key must not become its own trust root.
+        String selfSignedNonce = "self-signed-key-0001";
+        byte[] selfSignedMessage = EvidenceAuthorizedTransition.canonicalGrant(
+            meta.caseId, evidence.id, evidence.hash, selfSignedNonce, expiry);
+        try {
+            EvidenceAuthorizedTransition.apply(store, meta.caseId, evidence.id, outsiderPublicKey,
+                selfSignedNonce, expiry, sign(outsider.getPrivate(), selfSignedMessage), state);
+            throw new AssertionError("self-selected operator key accepted");
+        } catch (SecurityException expected) {
+            check(expected.getMessage().contains("operator_trust_pin_mismatch"),
+                "caller-selected key must fail against the configured trust pin");
         }
 
         // 3. Valid independent authorization permits exactly one bounded append.
@@ -88,7 +112,22 @@ public final class EvidenceAuthorizedTransitionTest {
         byte[] revokedMessage = EvidenceAuthorizedTransition.canonicalGrant(
             meta.caseId, evidence.id, evidence.hash, revokedNonce, expiry);
         byte[] revokedSignature = sign(operator.getPrivate(), revokedMessage);
-        EvidenceAuthorizedTransition.revoke(publicKey, revokedNonce, state);
+        long revocationExpiry = System.currentTimeMillis() + 60_000;
+        String operatorFingerprint = OperatorKeyTrust.fingerprint(operator.getPublic());
+        byte[] revocationStatement = EvidenceAuthorizedTransition.canonicalRevocation(
+            operatorFingerprint, revokedNonce, revocationExpiry);
+        // Reuse the outsider key from the earlier negative grant check.
+        
+        try {
+            EvidenceAuthorizedTransition.revoke(publicKey, revokedNonce, revocationExpiry,
+                sign(outsider.getPrivate(), revocationStatement), state);
+            throw new AssertionError("outsider revocation accepted");
+        } catch (SecurityException expected) {
+            check(expected.getMessage().contains("authority_revocation_signature_invalid"),
+                "outsider revocation rejection");
+        }
+        EvidenceAuthorizedTransition.revoke(publicKey, revokedNonce, revocationExpiry,
+            sign(operator.getPrivate(), revocationStatement), state);
         try {
             EvidenceAuthorizedTransition.apply(store, meta.caseId, evidence.id, publicKey, revokedNonce, expiry,
                 revokedSignature, state);
@@ -113,6 +152,6 @@ public final class EvidenceAuthorizedTransitionTest {
         check(new CaseStore(base).getArtifact(meta.caseId, consequence.id).hash.equals(consequence.hash),
             "authorized consequence persists across restart");
         check(store.audit(meta.caseId).isEmpty(), "CaseStore audit remains clean");
-        System.out.println("EVIDENCE_AUTHORIZED_TRANSITION: 15 checks passed; case=" + meta.caseId);
+        System.out.println("EVIDENCE_AUTHORIZED_TRANSITION: 18 checks passed; case=" + meta.caseId);
     }
 }

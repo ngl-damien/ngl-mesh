@@ -4,10 +4,7 @@ import ngl.relay.core.Artifact;
 import ngl.relay.core.CaseStore;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.security.*;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
 import java.util.UUID;
 
 /**
@@ -40,15 +37,6 @@ public final class EvidenceAuthorizedTransition {
             + "expires_at=" + expiresAt + "\n";
     }
 
-    private static PublicKey readPublicKey(File file) throws Exception {
-        String pem = Files.readString(file.toPath(), StandardCharsets.UTF_8)
-            .replace("-----BEGIN PUBLIC KEY-----", "")
-            .replace("-----END PUBLIC KEY-----", "")
-            .replaceAll("\\s+", "");
-        return KeyFactory.getInstance("Ed25519").generatePublic(
-            new X509EncodedKeySpec(Base64.getDecoder().decode(pem)));
-    }
-
     private static boolean verify(PublicKey key, byte[] message, byte[] signature) throws Exception {
         Signature verifier = Signature.getInstance("Ed25519");
         verifier.initVerify(key);
@@ -57,15 +45,7 @@ public final class EvidenceAuthorizedTransition {
     }
 
     private static void atomicMarker(File dir, String name, String value) throws Exception {
-        if (!dir.exists() && !dir.mkdirs()) throw new IOException("state_dir_create_failed");
-        File target = new File(dir, name);
-        try {
-            Files.writeString(target.toPath(), value, StandardCharsets.UTF_8,
-                java.nio.file.StandardOpenOption.CREATE_NEW,
-                java.nio.file.StandardOpenOption.WRITE);
-        } catch (java.nio.file.FileAlreadyExistsException e) {
-            throw new IllegalStateException("authority_replay");
-        }
+        DurableMarker.create(dir, name, value, "authority_replay");
     }
 
     private static void requireEvidence(Artifact evidence, String caseId) {
@@ -85,17 +65,19 @@ public final class EvidenceAuthorizedTransition {
         if (meta == null) throw new IllegalArgumentException("case_missing");
         Artifact evidence = store.getArtifact(caseId, evidenceId);
         requireEvidence(evidence, caseId);
-        if (expiresAt < System.currentTimeMillis()) throw new IllegalArgumentException("authority_expired");
+        if (RevocationAuthorization.isExpiredAt(expiresAt, System.currentTimeMillis())) throw new IllegalArgumentException("authority_expired");
         if (nonce == null || !nonce.matches("[A-Za-z0-9._-]{8,128}"))
             throw new IllegalArgumentException("authority_nonce_invalid");
 
         String message = canonical(caseId, evidence.id, evidence.hash, ACTION, nonce, expiresAt);
-        if (!verify(readPublicKey(operatorPublicKey), message.getBytes(StandardCharsets.UTF_8), signature))
+        OperatorKeyTrust.PinnedKey pinned = OperatorKeyTrust.loadPinnedKey(operatorPublicKey, OperatorKeyTrust.configuredFingerprint());
+        PublicKey trustedKey = pinned.key();
+        if (!verify(trustedKey, message.getBytes(StandardCharsets.UTF_8), signature))
             throw new SecurityException("authority_signature_invalid");
 
-        String keyFingerprint = sha(Files.readAllBytes(operatorPublicKey.toPath()));
+        String keyFingerprint = pinned.legacyPemFingerprint();
         String revocationId = sha(("revoke\n" + keyFingerprint + "\n" + nonce).getBytes(StandardCharsets.UTF_8));
-        if (new File(new File(authorityState, "revoked"), revocationId).isFile())
+        if (DurableMarker.exists(new File(authorityState, "revoked"), revocationId))
             throw new SecurityException("authority_revoked");
 
         String replayId = sha((keyFingerprint + "\n" + nonce + "\n" + evidence.hash + "\n" + ACTION)
@@ -118,12 +100,13 @@ public final class EvidenceAuthorizedTransition {
         return store.appendArtifact(caseId, event);
     }
 
-    public static void revoke(File operatorPublicKey, String nonce, File authorityState) throws Exception {
-        String keyFingerprint = sha(Files.readAllBytes(operatorPublicKey.toPath()));
-        String revocationId = sha(("revoke\n" + keyFingerprint + "\n" + nonce).getBytes(StandardCharsets.UTF_8));
-        File dir = new File(authorityState, "revoked");
-        if (!dir.exists() && !dir.mkdirs()) throw new IOException("state_dir_create_failed");
-        Files.writeString(new File(dir, revocationId).toPath(), "revoked\n", StandardCharsets.UTF_8);
+    public static void revoke(File operatorPublicKey, String nonce, long expiresAt,
+                              byte[] signature, File authorityState) throws Exception {
+        RevocationAuthorization.revoke(operatorPublicKey, nonce, expiresAt, signature, authorityState);
+    }
+
+    public static byte[] canonicalRevocation(String operatorSpkiFingerprint, String nonce, long expiresAt) {
+        return RevocationAuthorization.canonical(operatorSpkiFingerprint, nonce, expiresAt);
     }
 
     public static byte[] canonicalGrant(String caseId, String evidenceId, String evidenceHash,

@@ -12,9 +12,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Creates replay/revocation markers without following an existing marker path.
@@ -38,6 +40,50 @@ public final class DurableMarker {
         }
     }
 
+
+    private static UserPrincipal currentUser(Path directory) {
+        String name = ProcessHandle.current().info().user()
+            .orElseThrow(() -> new SecurityException("authority_state_owner_unavailable"));
+        try {
+            return directory.getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(name);
+        } catch (IOException | UnsupportedOperationException error) {
+            throw new SecurityException("authority_state_owner_unavailable", error);
+        }
+    }
+
+    private static void assertPrivateDirectory(Path directory) throws IOException {
+        if (Files.isSymbolicLink(directory) || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            throw new SecurityException("authority_state_not_directory");
+        }
+
+        Set<PosixFilePermission> permissions;
+        try {
+            permissions = Files.getPosixFilePermissions(directory, LinkOption.NOFOLLOW_LINKS);
+        } catch (UnsupportedOperationException unsupported) {
+            throw new SecurityException("authority_state_permissions_unavailable", unsupported);
+        }
+        if (!permissions.containsAll(EnumSet.of(PosixFilePermission.OWNER_READ,
+                PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE)) ||
+                permissions.contains(PosixFilePermission.GROUP_READ) ||
+                permissions.contains(PosixFilePermission.GROUP_WRITE) ||
+                permissions.contains(PosixFilePermission.GROUP_EXECUTE) ||
+                permissions.contains(PosixFilePermission.OTHERS_READ) ||
+                permissions.contains(PosixFilePermission.OTHERS_WRITE) ||
+                permissions.contains(PosixFilePermission.OTHERS_EXECUTE)) {
+            throw new SecurityException("authority_state_permissions_unsafe");
+        }
+
+        UserPrincipal actual;
+        try {
+            actual = Files.getOwner(directory, LinkOption.NOFOLLOW_LINKS);
+        } catch (UnsupportedOperationException unsupported) {
+            throw new SecurityException("authority_state_owner_unavailable", unsupported);
+        }
+        if (!actual.equals(currentUser(directory))) {
+            throw new SecurityException("authority_state_owner_mismatch");
+        }
+    }
+
     private static void ensureDirectory(Path dir) throws IOException {
         // Check every component, not only the leaf and its immediate parent:
         // an existing grandparent symlink can redirect a seemingly normal path.
@@ -54,20 +100,20 @@ public final class DurableMarker {
                     EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE,
                         PosixFilePermission.OWNER_EXECUTE)));
             } catch (UnsupportedOperationException unsupported) {
-                Files.createDirectories(dir);
+                throw new SecurityException("authority_state_permissions_unavailable", unsupported);
             }
         }
 
         // Recheck the entire path after creation to catch a replaced ancestor
         // observed between the initial validation and directory creation.
         rejectSymlinkAncestors(dir);
-        if (!Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS)) {
-            throw new SecurityException("authority_state_not_directory");
-        }
-        for (Path created : missing) {
-            if (Files.isSymbolicLink(created) || !Files.isDirectory(created, LinkOption.NOFOLLOW_LINKS)) {
-                throw new SecurityException("authority_state_not_directory");
-            }
+        if (missing.isEmpty()) {
+            assertPrivateDirectory(dir);
+        } else {
+            // CREATE_DIRECTORIES attributes do not repair an existing directory.
+            // Validate every newly created component and the existing leaf before
+            // trusting the path as replay/revocation state.
+            for (Path created : missing) assertPrivateDirectory(created);
         }
 
         // Sync the parent entry before syncing entries created inside it:

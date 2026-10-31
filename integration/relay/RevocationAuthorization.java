@@ -41,7 +41,7 @@ public final class RevocationAuthorization {
                               byte[] signature, File authorityState) throws Exception {
         if (nonce == null || !nonce.matches("[A-Za-z0-9._-]{8,128}"))
             throw new IllegalArgumentException("authority_nonce_invalid");
-        if (expiresAt < System.currentTimeMillis())
+        if (EvidenceAuthorizedTransition.isExpiredAt(expiresAt, System.currentTimeMillis()))
             throw new IllegalArgumentException("authority_expired");
         if (authorityState == null) throw new IllegalArgumentException("authority_state_missing");
 

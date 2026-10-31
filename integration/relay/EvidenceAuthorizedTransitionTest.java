@@ -25,6 +25,9 @@ public final class EvidenceAuthorizedTransitionTest {
     }
 
     public static void main(String[] args) throws Exception {
+        check(EvidenceAuthorizedTransition.isExpiredAt(100L, 100L), "grant is expired at exact expiry instant");
+        check(EvidenceAuthorizedTransition.isExpiredAt(99L, 100L), "grant is expired after its deadline");
+        check(!EvidenceAuthorizedTransition.isExpiredAt(101L, 100L), "grant remains valid before its deadline");
         File apk = new File(args[0]), report = new File(args[1]), base = new File(args[2]);
         CaseStore store = new CaseStore(base);
         CaseStore.CaseMeta meta = store.createCase("Authority experiment", "Evidence must not authorize itself");

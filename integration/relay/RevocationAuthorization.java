@@ -11,6 +11,10 @@ import java.util.HexFormat;
 public final class RevocationAuthorization {
     private RevocationAuthorization() {}
 
+    static boolean isExpiredAt(long expiresAt, long now) {
+        return expiresAt <= now;
+    }
+
     public static byte[] canonical(String operatorSpkiFingerprint, String nonce, long expiresAt) {
         if (operatorSpkiFingerprint == null || !operatorSpkiFingerprint.matches("[a-f0-9]{64}"))
             throw new IllegalArgumentException("authority_fingerprint_invalid");
@@ -41,7 +45,7 @@ public final class RevocationAuthorization {
                               byte[] signature, File authorityState) throws Exception {
         if (nonce == null || !nonce.matches("[A-Za-z0-9._-]{8,128}"))
             throw new IllegalArgumentException("authority_nonce_invalid");
-        if (EvidenceAuthorizedTransition.isExpiredAt(expiresAt, System.currentTimeMillis()))
+        if (isExpiredAt(expiresAt, System.currentTimeMillis()))
             throw new IllegalArgumentException("authority_expired");
         if (authorityState == null) throw new IllegalArgumentException("authority_state_missing");
 

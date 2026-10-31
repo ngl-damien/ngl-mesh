@@ -39,6 +39,10 @@ public final class DurableMarkerTest {
                 "new marker directory must be owner-only");
             check(Files.getOwner(used).getName().equals(ProcessHandle.current().info().user().orElseThrow()),
                 "new marker directory must belong to the current OS user");
+            check(Files.getPosixFilePermissions(used.resolve(name)).equals(PosixFilePermissions.fromString("rw-------")),
+                "marker file must be owner-only");
+            check(DurableMarker.exists(used.toFile(), name), "a valid marker is recognized");
+            check(!DurableMarker.exists(used.toFile(), "f".repeat(64)), "an absent marker is not reported");
 
             Path nestedUsed = root.resolve("deep").resolve("nested").resolve("used");
             String nestedName = "d".repeat(64);
@@ -57,6 +61,7 @@ public final class DurableMarkerTest {
             Files.createDirectory(linked);
             Files.setPosixFilePermissions(linked, PosixFilePermissions.fromString("rwx------"));
             Files.createSymbolicLink(linked.resolve(name), victim);
+            expect("authority_marker_not_regular", () -> DurableMarker.exists(linked.toFile(), name));
             expect("authority_replay",
                 () -> DurableMarker.create(linked.toFile(), name, "overwrite\n", "authority_replay"));
             check(Files.readString(victim, StandardCharsets.UTF_8).equals("leave unchanged\n"),
@@ -66,6 +71,8 @@ public final class DurableMarkerTest {
             Files.createSymbolicLink(directoryLink, used);
             expect("authority_state_not_directory",
                 () -> DurableMarker.create(directoryLink.toFile(), "b".repeat(64), "x\n", "authority_replay"));
+            expect("authority_state_not_directory",
+                () -> DurableMarker.exists(directoryLink.toFile(), "b".repeat(64)));
 
             Path realAncestor = root.resolve("real-ancestor");
             Path realNested = realAncestor.resolve("nested");
@@ -77,6 +84,16 @@ public final class DurableMarkerTest {
                 () -> DurableMarker.create(redirected.toFile(), "c".repeat(64), "x\n", "authority_replay"));
             check(!Files.exists(realNested.resolve("used"), LinkOption.NOFOLLOW_LINKS),
                 "a symlinked grandparent must not redirect marker creation");
+
+            Path permissiveParent = root.resolve("permissive-parent");
+            Files.createDirectory(permissiveParent);
+            Files.setPosixFilePermissions(permissiveParent, PosixFilePermissions.fromString("rwxrwxrwx"));
+            Path blockedChild = permissiveParent.resolve("used");
+            String parentBlockedName = "g".repeat(64);
+            expect("authority_state_permissions_unsafe",
+                () -> DurableMarker.create(blockedChild.toFile(), parentBlockedName, "must not persist\n", "authority_replay"));
+            check(!Files.exists(blockedChild, LinkOption.NOFOLLOW_LINKS),
+                "a permissive parent must be rejected before a child marker directory is created");
 
             Path permissive = root.resolve("permissive");
             Files.createDirectory(permissive);

@@ -104,6 +104,28 @@ public final class DurableMarkerTest {
             check(!Files.exists(permissive.resolve(blockedName), LinkOption.NOFOLLOW_LINKS),
                 "a pre-existing permissive directory must not receive replay/revocation markers");
 
+            Path writableGrandparent = root.resolve("writable-grandparent");
+            Files.createDirectory(writableGrandparent);
+            Files.setPosixFilePermissions(writableGrandparent, PosixFilePermissions.fromString("rwxrwxrwx"));
+            Path privateParent = writableGrandparent.resolve("private-parent");
+            Files.createDirectory(privateParent);
+            Files.setPosixFilePermissions(privateParent, PosixFilePermissions.fromString("rwx------"));
+            Path blockedByAncestor = privateParent.resolve("used");
+            expect("authority_state_ancestor_writable",
+                () -> DurableMarker.create(blockedByAncestor.toFile(), "8".repeat(64), "must not persist\\n", "authority_replay"));
+            check(!Files.exists(blockedByAncestor, LinkOption.NOFOLLOW_LINKS),
+                "a writable non-sticky grandparent must be rejected before marker directory creation");
+
+            Path existingMarkerDirectory = privateParent.resolve("existing-used");
+            Files.createDirectory(existingMarkerDirectory);
+            Files.setPosixFilePermissions(existingMarkerDirectory, PosixFilePermissions.fromString("rwx------"));
+            String existingMarkerName = "7".repeat(64);
+            Path existingMarker = existingMarkerDirectory.resolve(existingMarkerName);
+            Files.writeString(existingMarker, "existing marker\\n", StandardCharsets.UTF_8);
+            Files.setPosixFilePermissions(existingMarker, PosixFilePermissions.fromString("rw-------"));
+            expect("authority_state_ancestor_writable",
+                () -> DurableMarker.exists(existingMarkerDirectory.toFile(), existingMarkerName));
+
             expect("authority_marker_invalid",
                 () -> DurableMarker.create(used.toFile(), "../victim.txt", "overwrite\n", "authority_replay"));
             check(Files.readString(victim, StandardCharsets.UTF_8).equals("leave unchanged\n"),

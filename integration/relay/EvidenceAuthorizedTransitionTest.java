@@ -152,6 +152,6 @@ public final class EvidenceAuthorizedTransitionTest {
         check(new CaseStore(base).getArtifact(meta.caseId, consequence.id).hash.equals(consequence.hash),
             "authorized consequence persists across restart");
         check(store.audit(meta.caseId).isEmpty(), "CaseStore audit remains clean");
-        System.out.println("EVIDENCE_AUTHORIZED_TRANSITION: 15 checks passed; case=" + meta.caseId);
+        System.out.println("EVIDENCE_AUTHORIZED_TRANSITION: 18 checks passed; case=" + meta.caseId);
     }
 }

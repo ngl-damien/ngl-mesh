@@ -77,7 +77,7 @@ public final class EvidenceAuthorizedTransition {
 
         String keyFingerprint = pinned.legacyPemFingerprint();
         String revocationId = sha(("revoke\n" + keyFingerprint + "\n" + nonce).getBytes(StandardCharsets.UTF_8));
-        if (new File(new File(authorityState, "revoked"), revocationId).isFile())
+        if (DurableMarker.exists(new File(authorityState, "revoked"), revocationId))
             throw new SecurityException("authority_revoked");
 
         String replayId = sha((keyFingerprint + "\n" + nonce + "\n" + evidence.hash + "\n" + ACTION)

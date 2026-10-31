@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.stream.Stream;
 
 public final class DurableMarkerTest {
@@ -34,6 +35,10 @@ public final class DurableMarkerTest {
             DurableMarker.create(used.toFile(), name, "consumed\n", "authority_replay");
             check(Files.readString(used.resolve(name), StandardCharsets.UTF_8).equals("consumed\n"),
                 "marker bytes must be written before success returns");
+            check(Files.getPosixFilePermissions(used).equals(PosixFilePermissions.fromString("rwx------")),
+                "new marker directory must be owner-only");
+            check(Files.getOwner(used).getName().equals(ProcessHandle.current().info().user().orElseThrow()),
+                "new marker directory must belong to the current OS user");
 
             Path nestedUsed = root.resolve("deep").resolve("nested").resolve("used");
             String nestedName = "d".repeat(64);
@@ -71,6 +76,15 @@ public final class DurableMarkerTest {
                 () -> DurableMarker.create(redirected.toFile(), "c".repeat(64), "x\n", "authority_replay"));
             check(!Files.exists(realNested.resolve("used"), LinkOption.NOFOLLOW_LINKS),
                 "a symlinked grandparent must not redirect marker creation");
+
+            Path permissive = root.resolve("permissive");
+            Files.createDirectory(permissive);
+            Files.setPosixFilePermissions(permissive, PosixFilePermissions.fromString("rwxrwxrwx"));
+            String blockedName = "e".repeat(64);
+            expect("authority_state_permissions_unsafe",
+                () -> DurableMarker.create(permissive.toFile(), blockedName, "must not persist\n", "authority_replay"));
+            check(!Files.exists(permissive.resolve(blockedName), LinkOption.NOFOLLOW_LINKS),
+                "a pre-existing permissive directory must not receive replay/revocation markers");
 
             expect("authority_marker_invalid",
                 () -> DurableMarker.create(used.toFile(), "../victim.txt", "overwrite\n", "authority_replay"));

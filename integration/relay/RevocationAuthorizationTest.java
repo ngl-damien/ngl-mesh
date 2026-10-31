@@ -67,10 +67,13 @@ public final class RevocationAuthorizationTest {
 
             RevocationAuthorization.revoke(keyPath.toFile(), nonce, future,
                 sign(operator.getPrivate(), statement), authority);
+            OperatorKeyTrust.PinnedKey pinned = OperatorKeyTrust.loadPinnedKey(keyPath.toFile(), fingerprint);
+            check(AuthorityStateMarkers.isRevoked(authority, pinned, nonce),
+                "authorized revocation is recognized through the stable marker boundary");
             Path revoked = root.resolve("authority/revoked");
             check(Files.isDirectory(revoked), "authorized revocation directory exists");
             try (Stream<Path> files = Files.list(revoked)) {
-                check(files.count() == 1, "one authorized marker is persisted");
+                check(files.count() == 2, "new revocation writes stable and legacy compatibility markers");
             }
 
             try {

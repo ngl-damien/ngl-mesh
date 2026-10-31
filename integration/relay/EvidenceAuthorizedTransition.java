@@ -19,10 +19,6 @@ import java.util.UUID;
 public final class EvidenceAuthorizedTransition {
     public static final String ACTION = "append:verified-evidence-ack-v1";
 
-    static boolean isExpiredAt(long expiresAt, long now) {
-        return expiresAt <= now;
-    }
-
     private static String sha(byte[] bytes) throws Exception {
         StringBuilder out = new StringBuilder();
         for (byte b : MessageDigest.getInstance("SHA-256").digest(bytes))
@@ -69,7 +65,7 @@ public final class EvidenceAuthorizedTransition {
         if (meta == null) throw new IllegalArgumentException("case_missing");
         Artifact evidence = store.getArtifact(caseId, evidenceId);
         requireEvidence(evidence, caseId);
-        if (isExpiredAt(expiresAt, System.currentTimeMillis())) throw new IllegalArgumentException("authority_expired");
+        if (RevocationAuthorization.isExpiredAt(expiresAt, System.currentTimeMillis())) throw new IllegalArgumentException("authority_expired");
         if (nonce == null || !nonce.matches("[A-Za-z0-9._-]{8,128}"))
             throw new IllegalArgumentException("authority_nonce_invalid");
 

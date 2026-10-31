@@ -25,10 +25,17 @@ jobs:
             integration/relay/DurableMarker.java \
             integration/relay/DurableMarkerTest.java \
             integration/relay/RevocationAuthorization.java \
-            integration/relay/RevocationAuthorizationTest.java
+            integration/relay/RevocationAuthorizationTest.java \
+            integration/relay/AuthorityStateMarkers.java \
+            integration/relay/AuthorityStateMarkersTest.java \
+            integration/relay/EvidenceAuthorizedTransitionSourceTest.java
       - name: Run isolated trust-pin regression
         run: java -cp "$RUNNER_TEMP/ngl-operator-key-trust" ngl.relay.integration.OperatorKeyTrustTest
       - name: Run durable marker regression
         run: java -cp "$RUNNER_TEMP/ngl-operator-key-trust" ngl.relay.integration.DurableMarkerTest
       - name: Run signed revocation regression
         run: java -cp "$RUNNER_TEMP/ngl-operator-key-trust" ngl.relay.integration.RevocationAuthorizationTest
+      - name: Run stable and legacy marker regressions
+        run: java -cp "$RUNNER_TEMP/ngl-operator-key-trust" ngl.relay.integration.AuthorityStateMarkersTest
+      - name: Verify the live transition uses stable marker identities
+        run: java -cp "$RUNNER_TEMP/ngl-operator-key-trust" ngl.relay.integration.EvidenceAuthorizedTransitionSourceTest integration/relay/EvidenceAuthorizedTransition.java

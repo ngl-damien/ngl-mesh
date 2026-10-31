@@ -28,6 +28,15 @@ public final class DurableMarkerTest {
     }
 
     public static void main(String[] args) throws Exception {
+        check(DurableMarker.isSafeAncestorMode(0755, false),
+            "readable but non-writable ancestors are safe regardless of owner");
+        check(!DurableMarker.isSafeAncestorMode(01777, false),
+            "a sticky writable ancestor owned by an unrelated user is unsafe");
+        check(DurableMarker.isSafeAncestorMode(01777, true),
+            "a trusted sticky writable ancestor is safe");
+        check(!DurableMarker.isSafeAncestorMode(0777, true),
+            "a writable non-sticky ancestor is unsafe even when owned by the current user");
+
         Path root = Files.createTempDirectory("ngl-durable-marker-");
         try {
             String name = "a".repeat(64);

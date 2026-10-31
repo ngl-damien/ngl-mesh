@@ -34,10 +34,25 @@ public final class DurableMarker {
         }
     }
 
-    private static void rejectSymlinkAncestors(Path path) {
+    private static void validateAncestors(Path path) throws IOException {
         for (Path current = path; current != null; current = current.getParent()) {
             if (Files.isSymbolicLink(current)) {
                 throw new SecurityException("authority_state_not_directory");
+            }
+            if (!Files.exists(current, LinkOption.NOFOLLOW_LINKS)) continue;
+
+            // A private leaf is still replaceable if a non-sticky ancestor grants
+            // group/other write access to the directory entry containing it.
+            // Permit sticky shared directories such as /tmp; their sticky bit
+            // prevents another user from renaming an entry they do not own.
+            int mode;
+            try {
+                mode = ((Number) Files.getAttribute(current, "unix:mode", LinkOption.NOFOLLOW_LINKS)).intValue();
+            } catch (UnsupportedOperationException | IllegalArgumentException unsupported) {
+                throw new SecurityException("authority_state_permissions_unavailable", unsupported);
+            }
+            if ((mode & 0022) != 0 && (mode & 01000) == 0) {
+                throw new SecurityException("authority_state_ancestor_writable");
             }
         }
     }
@@ -114,7 +129,7 @@ public final class DurableMarker {
     private static void ensureDirectory(Path dir) throws IOException {
         // Check every component, not only the leaf and its immediate parent:
         // an existing grandparent symlink can redirect a seemingly normal path.
-        rejectSymlinkAncestors(dir);
+        validateAncestors(dir);
         Path parent = dir.getParent();
         if (parent != null && Files.exists(parent, LinkOption.NOFOLLOW_LINKS)) {
             // The parent owns the leaf directory entry. A private leaf inside a
@@ -139,7 +154,7 @@ public final class DurableMarker {
 
         // Recheck the entire path after creation to catch a replaced ancestor
         // observed between the initial validation and directory creation.
-        rejectSymlinkAncestors(dir);
+        validateAncestors(dir);
         if (missing.isEmpty()) {
             assertPrivateDirectory(dir);
         } else {
@@ -164,7 +179,7 @@ public final class DurableMarker {
             throw new IllegalArgumentException("authority_marker_invalid");
         }
         Path dir = directory.toPath().toAbsolutePath().normalize();
-        rejectSymlinkAncestors(dir);
+        validateAncestors(dir);
         Path parent = dir.getParent();
         if (parent != null) {
             try {

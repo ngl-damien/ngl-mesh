@@ -2,9 +2,10 @@ package ngl.relay.integration;
 
 import ngl.relay.core.Artifact;
 import ngl.relay.core.CaseStore;
-import java.io.*;
+import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.security.*;
+import java.security.PublicKey;
+import java.security.Signature;
 import java.util.UUID;
 
 /**
@@ -18,13 +19,6 @@ import java.util.UUID;
  */
 public final class EvidenceAuthorizedTransition {
     public static final String ACTION = "append:verified-evidence-ack-v1";
-
-    private static String sha(byte[] bytes) throws Exception {
-        StringBuilder out = new StringBuilder();
-        for (byte b : MessageDigest.getInstance("SHA-256").digest(bytes))
-            out.append(Character.forDigit((b >>> 4) & 15, 16)).append(Character.forDigit(b & 15, 16));
-        return out.toString();
-    }
 
     private static String canonical(String caseId, String evidenceId, String evidenceHash,
                                     String action, String nonce, long expiresAt) {
@@ -44,10 +38,6 @@ public final class EvidenceAuthorizedTransition {
         return verifier.verify(signature);
     }
 
-    private static void atomicMarker(File dir, String name, String value) throws Exception {
-        DurableMarker.create(dir, name, value, "authority_replay");
-    }
-
     private static void requireEvidence(Artifact evidence, String caseId) {
         if (evidence == null) throw new IllegalArgumentException("evidence_missing");
         if (!caseId.equals(evidence.caseId)) throw new IllegalArgumentException("evidence_case_mismatch");
@@ -65,25 +55,26 @@ public final class EvidenceAuthorizedTransition {
         if (meta == null) throw new IllegalArgumentException("case_missing");
         Artifact evidence = store.getArtifact(caseId, evidenceId);
         requireEvidence(evidence, caseId);
-        if (RevocationAuthorization.isExpiredAt(expiresAt, System.currentTimeMillis())) throw new IllegalArgumentException("authority_expired");
+        if (RevocationAuthorization.isExpiredAt(expiresAt, System.currentTimeMillis()))
+            throw new IllegalArgumentException("authority_expired");
         if (nonce == null || !nonce.matches("[A-Za-z0-9._-]{8,128}"))
             throw new IllegalArgumentException("authority_nonce_invalid");
 
         String message = canonical(caseId, evidence.id, evidence.hash, ACTION, nonce, expiresAt);
-        OperatorKeyTrust.PinnedKey pinned = OperatorKeyTrust.loadPinnedKey(operatorPublicKey, OperatorKeyTrust.configuredFingerprint());
-        PublicKey trustedKey = pinned.key();
-        if (!verify(trustedKey, message.getBytes(StandardCharsets.UTF_8), signature))
+        OperatorKeyTrust.PinnedKey pinned = OperatorKeyTrust.loadPinnedKey(
+            operatorPublicKey, OperatorKeyTrust.configuredFingerprint());
+        if (!verify(pinned.key(), message.getBytes(StandardCharsets.UTF_8), signature))
             throw new SecurityException("authority_signature_invalid");
 
-        String keyFingerprint = pinned.legacyPemFingerprint();
-        String revocationId = sha(("revoke\n" + keyFingerprint + "\n" + nonce).getBytes(StandardCharsets.UTF_8));
-        if (DurableMarker.exists(new File(authorityState, "revoked"), revocationId))
+        String keyFingerprint = pinned.spkiFingerprint();
+        if (AuthorityStateMarkers.isRevoked(authorityState, pinned, nonce))
             throw new SecurityException("authority_revoked");
 
-        String replayId = sha((keyFingerprint + "\n" + nonce + "\n" + evidence.hash + "\n" + ACTION)
-            .getBytes(StandardCharsets.UTF_8));
-        atomicMarker(new File(authorityState, "used"), replayId,
-            "case_id=" + caseId + "\nevidence_id=" + evidence.id + "\naction=" + ACTION + "\n");
+        AuthorityStateMarkers.createReplay(authorityState, pinned, nonce, evidence.hash, ACTION,
+            "case_id=" + caseId + "\n"
+                + "evidence_id=" + evidence.id + "\n"
+                + "action=" + ACTION + "\n"
+                + "operator_spki_sha256=" + keyFingerprint + "\n");
 
         String id = UUID.nameUUIDFromBytes(("authorized-transition-v1:" + caseId + ":" + evidence.hash + ":" + nonce)
             .getBytes(StandardCharsets.UTF_8)).toString();

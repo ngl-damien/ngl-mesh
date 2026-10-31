@@ -89,7 +89,7 @@ public final class DurableMarkerTest {
             Files.createDirectory(permissiveParent);
             Files.setPosixFilePermissions(permissiveParent, PosixFilePermissions.fromString("rwxrwxrwx"));
             Path blockedChild = permissiveParent.resolve("used");
-            String parentBlockedName = "g".repeat(64);
+            String parentBlockedName = "9".repeat(64);
             expect("authority_state_permissions_unsafe",
                 () -> DurableMarker.create(blockedChild.toFile(), parentBlockedName, "must not persist\n", "authority_replay"));
             check(!Files.exists(blockedChild, LinkOption.NOFOLLOW_LINKS),

@@ -55,12 +55,27 @@ public final class DurableMarker {
             } catch (UnsupportedOperationException | IllegalArgumentException unsupported) {
                 throw new SecurityException("authority_state_permissions_unavailable", unsupported);
             }
-            if ((mode & 0022) != 0 && (mode & 01000) == 0) {
+            if (!isSafeAncestorMode(mode, isTrustedAncestorOwner(current))) {
                 throw new SecurityException("authority_state_ancestor_writable");
             }
         }
     }
 
+
+    static boolean isSafeAncestorMode(int mode, boolean ownerTrusted) {
+        return (mode & 0022) == 0 || ((mode & 01000) != 0 && ownerTrusted);
+    }
+
+    private static boolean isTrustedAncestorOwner(Path directory) throws IOException {
+        int ownerUid;
+        try {
+            ownerUid = ((Number) Files.getAttribute(directory, "unix:uid", LinkOption.NOFOLLOW_LINKS)).intValue();
+        } catch (UnsupportedOperationException | IllegalArgumentException unsupported) {
+            throw new SecurityException("authority_state_owner_unavailable", unsupported);
+        }
+        if (ownerUid == 0) return true;
+        return Files.getOwner(directory, LinkOption.NOFOLLOW_LINKS).equals(currentUser(directory));
+    }
 
     private static UserPrincipal currentUser(Path directory) {
         String name = ProcessHandle.current().info().user()

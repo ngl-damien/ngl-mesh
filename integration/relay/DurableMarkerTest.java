@@ -55,6 +55,7 @@ public final class DurableMarkerTest {
             Files.writeString(victim, "leave unchanged\n", StandardCharsets.UTF_8);
             Path linked = root.resolve("linked");
             Files.createDirectory(linked);
+            Files.setPosixFilePermissions(linked, PosixFilePermissions.fromString("rwx------"));
             Files.createSymbolicLink(linked.resolve(name), victim);
             expect("authority_replay",
                 () -> DurableMarker.create(linked.toFile(), name, "overwrite\n", "authority_replay"));

@@ -38,14 +38,15 @@ use archived binaries or keystores, or contact real providers.
 `RaeEvidenceBridge.append(store, existingCaseId, apk, report)`:
 
 1. Requires an existing case and preserves its original input parent.
-2. Independently reads the APK and checks exact reference identity.
-3. Requires the report's artifact identity to match those independently read bytes.
-4. Appends a system event containing the original report and its own content hash.
-5. Preserves the original CaseStore persistence, UUID format, append ordering and
+2. Opens both input paths as bounded regular, non-symlink files without following links, then rechecks file identity, size, and modification time after reading.
+3. Independently reads the APK and checks exact reference identity.
+4. Requires the report's artifact identity to match those independently read bytes.
+5. Appends a system event containing the original report and its own content hash.
+6. Preserves the original CaseStore persistence, UUID format, append ordering and
    hash checking. A scoped deterministic UUID rejects identical report imports.
-6. Never advances methodology stages or creates a human decision. It labels
+7. Never advances methodology stages or creates a human decision. It labels
    imported extraction claims as external, not locally re-extracted truth.
-7. Appends error evidence for rejected imports when the existing store can write.
+8. Appends error evidence for rejected imports when the existing store can write.
 
 The bridge checks APK identity itself; DEX parsing remains in RAE. A forged
 report about the correct APK is still imported only as external data. It cannot

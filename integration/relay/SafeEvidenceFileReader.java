@@ -11,7 +11,6 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Objects;
 
 /** Bounded reader that checks path components and opens the final file without following links. */
 public final class SafeEvidenceFileReader {
@@ -24,6 +23,14 @@ public final class SafeEvidenceFileReader {
             current = current.resolve(component);
             if (Files.isSymbolicLink(current)) throw new IOException("input_symlink_component");
         }
+    }
+
+    /**
+     * A null fileKey means the filesystem provider cannot prove file identity.
+     * Treat that as unverifiable rather than allowing null to compare equal to null.
+     */
+    static boolean hasStableFileKey(Object before, Object after) {
+        return before != null && after != null && before.equals(after);
     }
 
     public static byte[] read(File file, int limit) throws IOException {
@@ -52,7 +59,7 @@ public final class SafeEvidenceFileReader {
         BasicFileAttributes after = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         if (!after.isRegularFile() || before.size() != bytes.length || after.size() != bytes.length
             || !before.lastModifiedTime().equals(after.lastModifiedTime())
-            || !Objects.equals(before.fileKey(), after.fileKey())) {
+            || !hasStableFileKey(before.fileKey(), after.fileKey())) {
             throw new IOException("input_changed_during_read");
         }
         return bytes;

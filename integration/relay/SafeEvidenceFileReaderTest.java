@@ -24,7 +24,21 @@ public final class SafeEvidenceFileReaderTest {
         }
     }
 
+    private static void checksFileKeyIdentity() {
+        check(SafeEvidenceFileReader.hasStableFileKey("file-1", "file-1"),
+            "matching non-null file keys prove stable identity");
+        check(!SafeEvidenceFileReader.hasStableFileKey("file-1", "file-2"),
+            "different file keys reject replacement");
+        check(!SafeEvidenceFileReader.hasStableFileKey(null, null),
+            "missing file keys cannot prove stable identity");
+        check(!SafeEvidenceFileReader.hasStableFileKey("file-1", null),
+            "a missing post-read file key cannot prove stable identity");
+        check(!SafeEvidenceFileReader.hasStableFileKey(null, "file-1"),
+            "a missing pre-read file key cannot prove stable identity");
+    }
+
     public static void main(String[] args) throws Exception {
+        checksFileKeyIdentity();
         Path root = Files.createTempDirectory("ngl-safe-evidence-");
         try {
             Path regular = root.resolve("report.json");

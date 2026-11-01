@@ -28,8 +28,12 @@ jobs:
           javac -d "$RUNNER_TEMP/ngl-relay-utf8" \
             integration/relay/StrictUtf8.java \
             integration/relay/StrictUtf8Test.java \
+            integration/relay/SafeEvidenceFileReader.java \
+            integration/relay/SafeEvidenceFileReaderTest.java \
             integration/relay/RaeEvidenceBridgeSourceTest.java
       - name: Reject malformed UTF-8 and preserve valid byte round-trips
         run: java -cp "$RUNNER_TEMP/ngl-relay-utf8" ngl.relay.integration.StrictUtf8Test
-      - name: Verify the RAE bridge uses strict decoding before parsing
+      - name: Reject symlink and non-regular evidence inputs
+        run: java -cp "$RUNNER_TEMP/ngl-relay-utf8" ngl.relay.integration.SafeEvidenceFileReaderTest
+      - name: Verify the RAE bridge uses no-follow reads and strict decoding before parsing
         run: java -cp "$RUNNER_TEMP/ngl-relay-utf8" ngl.relay.integration.RaeEvidenceBridgeSourceTest integration/relay/RaeEvidenceBridge.java

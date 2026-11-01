@@ -3,7 +3,7 @@ package ngl.relay.integration;
 import ngl.relay.core.Artifact;
 import ngl.relay.core.CaseStore;
 import ngl.relay.core.CoreJson;
-import java.io.*;
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.UUID;
@@ -15,18 +15,6 @@ import java.util.UUID;
 public final class RaeEvidenceBridge {
     public static final String REFERENCE_SHA256 = "6cee7b1ea12c435cc7705510b5d61c85c63764dcd9658a00b6ea99c2311e9ffe";
     public static final int REFERENCE_LENGTH = 49651;
-
-    private static byte[] read(File file, int limit) throws IOException {
-        if (!file.isFile() || file.length() > limit) throw new IOException("input_not_regular_or_too_large");
-        try (InputStream in = new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] buffer = new byte[4096]; int count;
-            while ((count = in.read(buffer)) != -1) {
-                if (out.size() + count > limit) throw new IOException("input_limit");
-                out.write(buffer, 0, count);
-            }
-            return out.toByteArray();
-        }
-    }
 
     private static String sha(byte[] bytes) throws Exception {
         StringBuilder out = new StringBuilder();
@@ -49,12 +37,12 @@ public final class RaeEvidenceBridge {
 
     private static Artifact appendChecked(CaseStore store, CaseStore.CaseMeta meta, File apk, File report) throws Exception {
         String caseId = meta.caseId;
-        byte[] bytes = read(apk, REFERENCE_LENGTH);
+        byte[] bytes = SafeEvidenceFileReader.read(apk, REFERENCE_LENGTH);
         String apkHash = sha(bytes);
         if (bytes.length != REFERENCE_LENGTH || !REFERENCE_SHA256.equals(apkHash)) {
             throw new IllegalArgumentException("reference_identity_mismatch");
         }
-        byte[] reportBytes = read(report, 16 * 1024 * 1024);
+        byte[] reportBytes = SafeEvidenceFileReader.read(report, 16 * 1024 * 1024);
         String reportText = StrictUtf8.decode(reportBytes);
         CoreJson.JObject root = CoreJson.parseObject(reportText);
         CoreJson.JObject observed = root.getObject("observation");

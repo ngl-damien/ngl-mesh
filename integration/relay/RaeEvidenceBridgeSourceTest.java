@@ -20,6 +20,12 @@ public final class RaeEvidenceBridgeSourceTest {
         check(reportHash > parse, "the original bytes must be hashed after successful decoding");
         check(!source.contains("new String(reportBytes, StandardCharsets.UTF_8)"),
             "replacement-decoding must not return");
-        System.out.println("RAE_BRIDGE_SOURCE_CONTRACT: 4 checks passed");
+        check(source.contains("SafeEvidenceFileReader.read(apk, REFERENCE_LENGTH)"),
+            "APK bytes must use the bounded no-follow reader");
+        check(source.contains("SafeEvidenceFileReader.read(report, 16 * 1024 * 1024)"),
+            "report bytes must use the bounded no-follow reader");
+        check(!source.contains("new FileInputStream"),
+            "bridge must not follow input symlinks through FileInputStream");
+        System.out.println("RAE_BRIDGE_SOURCE_CONTRACT: 7 checks passed");
     }
 }

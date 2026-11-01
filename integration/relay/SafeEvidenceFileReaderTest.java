@@ -40,11 +40,19 @@ public final class SafeEvidenceFileReaderTest {
             Path link = root.resolve("report-link.json");
             Files.createSymbolicLink(link, regular.getFileName());
             check(Files.isSymbolicLink(link), "symlink fixture is a symbolic link");
-            rejects(link.toFile(), 16, "input_not_regular_or_too_large");
+            rejects(link.toFile(), 16, "input_symlink_component");
 
             Path directoryLink = root.resolve("directory-link");
             Files.createSymbolicLink(directoryLink, directory.getFileName());
-            rejects(directoryLink.toFile(), 16, "input_not_regular_or_too_large");
+            rejects(directoryLink.toFile(), 16, "input_symlink_component");
+
+            Path outside = root.resolve("outside");
+            Files.createDirectory(outside);
+            Files.writeString(outside.resolve("report.json"), "{}", StandardCharsets.UTF_8);
+            Path parentLink = root.resolve("parent-link");
+            Files.createSymbolicLink(parentLink, outside.getFileName());
+            check(Files.isSymbolicLink(parentLink), "parent symlink fixture is a symbolic link");
+            rejects(parentLink.resolve("report.json").toFile(), 16, "input_symlink_component");
 
             Path empty = root.resolve("empty");
             Files.write(empty, new byte[0]);

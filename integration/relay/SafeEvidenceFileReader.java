@@ -13,13 +13,23 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 
-/** Bounded regular-file reader that refuses symbolic links and path replacement. */
+/** Bounded reader that checks path components and opens the final file without following links. */
 public final class SafeEvidenceFileReader {
     private SafeEvidenceFileReader() {}
 
+    private static void rejectSymlinkComponents(Path path) throws IOException {
+        Path current = path.getRoot();
+        if (current == null || Files.isSymbolicLink(current)) throw new IOException("input_symlink_component");
+        for (Path component : path) {
+            current = current.resolve(component);
+            if (Files.isSymbolicLink(current)) throw new IOException("input_symlink_component");
+        }
+    }
+
     public static byte[] read(File file, int limit) throws IOException {
         if (file == null || limit < 0) throw new IOException("input_not_regular_or_too_large");
-        Path path = file.toPath();
+        Path path = file.toPath().toAbsolutePath().normalize();
+        rejectSymlinkComponents(path);
         BasicFileAttributes before = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         if (!before.isRegularFile() || before.size() > limit) {
             throw new IOException("input_not_regular_or_too_large");
@@ -38,6 +48,7 @@ public final class SafeEvidenceFileReader {
             bytes = out.toByteArray();
         }
 
+        rejectSymlinkComponents(path);
         BasicFileAttributes after = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         if (!after.isRegularFile() || before.size() != bytes.length || after.size() != bytes.length
             || !before.lastModifiedTime().equals(after.lastModifiedTime())

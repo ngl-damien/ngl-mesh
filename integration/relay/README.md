@@ -38,7 +38,7 @@ use archived binaries or keystores, or contact real providers.
 `RaeEvidenceBridge.append(store, existingCaseId, apk, report)`:
 
 1. Requires an existing case and preserves its original input parent.
-2. Opens both input paths as bounded regular, non-symlink files without following links, then rechecks file identity, size, and modification time after reading.
+2. Checks every resolved input path component for symbolic links and opens the final regular file with NOFOLLOW_LINKS; reads are bounded and file identity, size, and modification time are rechecked after reading.
 3. Independently reads the APK and checks exact reference identity.
 4. Requires the report's artifact identity to match those independently read bytes.
 5. Appends a system event containing the original report and its own content hash.
